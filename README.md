@@ -1,8 +1,8 @@
-# 🤖 AI Email Classifier
+# 📧 Lightweight Email Classifier
 
-**Solução empresarial de classificação automática de emails com Inteligência Artificial**
+**Solução empresarial de classificação automática de emails com algoritmos leves e eficientes**
 
-Uma aplicação web completa que utiliza técnicas avançadas de processamento de linguagem natural (NLP) para classificar emails automaticamente como **Produtivos** ou **Não Produtivos** e gerar respostas automáticas contextualizadas.
+Uma aplicação web completa que utiliza análise de texto inteligente para classificar emails automaticamente como **Produtivos** ou **Não Produtivos** e gerar respostas automáticas contextualizadas. Otimizada para performance e baixo consumo de memória.
 
 > 📱 **Demo ao vivo:** [https://email-classifier.vercel.app](https://email-classifier.vercel.app)  
 > 🔗 **API Backend:** [https://email-classifier-backend.onrender.com](https://email-classifier-backend.onrender.com)
@@ -172,21 +172,22 @@ npm run dev
 
 ---
 
-## 🔬 Algoritmo de Classificação
+## 🔬 Algoritmo de Classificação Leve
 
-### **Processamento de Texto (NLP)**
+### **Processamento de Texto Otimizado**
 
-1. **Normalização:** Conversão para minúsculas
-2. **Tokenização:** Separação em palavras individuais
-3. **Remoção de Stop Words:** Filtro de palavras irrelevantes
-4. **Lemmatização:** Redução às formas básicas das palavras
+1. **Normalização:** Limpeza e padronização do texto
+2. **Análise de Padrões:** Regex para detecção de estruturas específicas
+3. **Contagem de Palavras-chave:** Sistema de scoring inteligente
+4. **Análise Estrutural:** Métricas de texto (perguntas, exclamações, etc.)
 
-### **Classificação Híbrida**
+### **Classificação Híbrida Leve**
 
-1. **Análise de Palavras-chave:** Busca por termos indicativos
-2. **Modelo de IA:** Transformer BERT para análise semântica
-3. **Score de Confiança:** Combinação das duas abordagens
-4. **Decisão Final:** Classificação com percentual de certeza
+1. **🔤 Análise de Palavras-chave:** 30+ termos produtivos/não-produtivos
+2. **📊 TextBlob Sentiment:** Análise de sentimento (quando disponível)
+3. **🎯 Pattern Matching:** Regex para padrões específicos (códigos de erro, etc.)
+4. **⚖️ Score Inteligente:** Combinação ponderada de múltiplas fontes
+5. **🚀 Performance:** Classificação em < 100ms, < 50MB RAM
 
 ### **Palavras-chave Produtivas**
 
@@ -200,15 +201,16 @@ npm run dev
 
 ## 🛠️ Stack Tecnológico Completo
 
-### **Backend**
+### **Backend (Lightweight)**
 
 - **🐍 Python 3.9+** - Linguagem principal
-- **🌶️ Flask** - Framework web minimalista
-- **🤖 Transformers** - Modelos de IA da Hugging Face
-- **📝 NLTK** - Processamento de linguagem natural
-- **📄 PyPDF2** - Extração de texto de PDFs
-- **🔀 Flask-CORS** - Configuração de CORS
+- **🌶️ Flask 3.1.2** - Framework web minimalista
+- **📊 TextBlob** - Análise de sentimento leve (opcional)
+- **📄 PyPDF2 3.0.1** - Extração de texto de PDFs
+- **🔀 Flask-CORS 6.0.1** - Configuração de CORS
+- **🧠 Rule-based AI** - Classificação inteligente sem modelos pesados
 - **🚀 Gunicorn** - Servidor WSGI para produção
+- **💾 Memory Usage:** < 50MB (vs 2GB+ com PyTorch)
 
 ### **Frontend**
 

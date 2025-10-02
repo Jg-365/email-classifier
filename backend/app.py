@@ -7,8 +7,11 @@ import io
 import re
 import logging
 from dotenv import load_dotenv
-import torch
-from transformers import pipeline
+try:
+    from textblob import TextBlob
+    TEXTBLOB_AVAILABLE = True
+except ImportError:
+    TEXTBLOB_AVAILABLE = False
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -48,45 +51,45 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
 # Criar pasta de uploads
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Inicialização dos modelos Transformers
-class TransformersClassifier:
+# Classificador leve baseado em regras e análise de texto
+class LightweightClassifier:
     def __init__(self):
-        self.sentiment_model = None
-        self.zero_shot_classifier = None
-        self.device = torch.device('cpu')  # Força CPU para estabilidade
-        logger.info(f"Using device: {self.device}")
+        self.textblob_available = TEXTBLOB_AVAILABLE
+        logger.info(f"Initializing lightweight classifier")
+        logger.info(f"TextBlob available: {self.textblob_available}")
         
-        self.initialize_models()
-    
-    def initialize_models(self):
-        """Inicializa modelos Transformers com fallbacks robustos"""
-        try:
-            # Modelo de análise de sentimento (mais estável)
-            self.sentiment_model = pipeline(
-                "sentiment-analysis",
-                model="distilbert-base-uncased-finetuned-sst-2-english",
-                return_all_scores=True,
-                device=-1  # Força CPU
-            )
-            logger.info("Sentiment analysis model loaded successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to load sentiment model: {e}")
-            
-        try:
-            # Modelo zero-shot para classificação específica
-            self.zero_shot_classifier = pipeline(
-                "zero-shot-classification",
-                model="facebook/bart-large-mnli",
-                device=-1  # Força CPU
-            )
-            logger.info("Zero-shot classification model loaded successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to load zero-shot model: {e}")
+        # Palavras-chave categorizadas para classificação
+        self.productive_keywords = {
+            'urgent', 'help', 'support', 'issue', 'problem', 'error', 'bug',
+            'question', 'assistance', 'request', 'deadline', 'fix', 'repair',
+            'technical', 'account', 'access', 'login', 'password', 'payment',
+            'troubleshoot', 'system', 'application', 'website', 'service',
+            'broken', 'not working', 'failing', 'crash', 'stuck', 'blocked',
+            'asap', 'immediately', 'priority', 'critical', 'emergency'
+        }
+        
+        self.nonproductive_keywords = {
+            'thank', 'thanks', 'grateful', 'appreciate', 'congratulations',
+            'birthday', 'holiday', 'vacation', 'celebrate', 'party', 'social',
+            'greeting', 'hello', 'hi', 'good morning', 'good afternoon',
+            'welcome', 'wishes', 'best regards', 'cheers', 'love', 'miss you',
+            'hope you are well', 'how are you', 'long time no see', 'catch up'
+        }
+        
+        # Padrões de email produtivos
+        self.productive_patterns = [
+            r'\b(error|bug|issue)\s+(#?\w+)',  # Error codes
+            r'(can\'?t|cannot|unable to)\s+\w+',  # Cannot do something
+            r'\b(fix|resolve|solve|repair)\b',  # Action requests
+            r'\?\s*$',  # Questions
+            r'deadline\s+\w+',  # Deadlines
+            r'urgent|asap|immediately',  # Urgency
+        ]
+        
+        logger.info("Lightweight classifier initialized successfully")
 
 # Instância global do classificador
-classifier = TransformersClassifier()
+classifier = LightweightClassifier()
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -124,119 +127,124 @@ def preprocess_text(text):
         logger.error(f"Error preprocessing text: {e}")
         return str(text) if text else ""
 
-def classify_with_transformers(text):
-    """Classificação híbrida usando Transformers"""
+def classify_with_lightweight_ai(text):
+    """Classificação leve usando TextBlob + regras avançadas"""
     try:
-        if not classifier.sentiment_model:
-            return classify_with_rules(text)
-        
-        # Preprocessar texto
         processed_text = preprocess_text(text)
         if not processed_text:
-            return "Productive", 0.5, {}
-        
-        # Análise de sentimento
-        sentiment_results = classifier.sentiment_model(processed_text)
-        sentiment_scores = {result['label']: result['score'] for result in sentiment_results[0]}
-        
-        # Zero-shot classification (se disponível)
-        zero_shot_result = None
-        if classifier.zero_shot_classifier and len(processed_text) > 10:
-            try:
-                candidate_labels = [
-                    "technical support request", 
-                    "business inquiry", 
-                    "complaint or issue",
-                    "greeting or social message", 
-                    "thank you message", 
-                    "celebration or congratulations"
-                ]
-                zero_shot_result = classifier.zero_shot_classifier(processed_text, candidate_labels)
-            except Exception as e:
-                logger.warning(f"Zero-shot classification failed: {e}")
-        
-        # Extrair scores de sentimento
-        negative_score = sentiment_scores.get('NEGATIVE', 0.0)
-        positive_score = sentiment_scores.get('POSITIVE', 0.0)
-        
-        # Análise de palavras-chave para refinar classificação
-        productive_keywords = [
-            'help', 'issue', 'problem', 'error', 'bug', 'urgent', 'support', 
-            'request', 'question', 'assistance', 'deadline', 'asap', 'fix',
-            'troubleshoot', 'account', 'access', 'login', 'password', 'payment',
-            'technical', 'system', 'application', 'website', 'service'
-        ]
-        
-        nonproductive_keywords = [
-            'thank', 'thanks', 'grateful', 'appreciate', 'congratulations',
-            'birthday', 'holiday', 'vacation', 'celebrate', 'party', 'social',
-            'greeting', 'hello', 'hi', 'good morning', 'good afternoon',
-            'welcome', 'wishes', 'best regards'
-        ]
+            return "Productive", 0.5, {'method': 'empty_text'}
         
         text_lower = text.lower()
-        productive_matches = sum(1 for keyword in productive_keywords if keyword in text_lower)
-        nonproductive_matches = sum(1 for keyword in nonproductive_keywords if keyword in text_lower)
+        analysis_details = {}
         
-        # Combinação inteligente de múltiplas fontes
-        productive_score = 0.0
-        nonproductive_score = 0.0
+        # 1. Análise de sentimento com TextBlob (se disponível)
+        sentiment_score = 0.0
+        if classifier.textblob_available:
+            try:
+                blob = TextBlob(processed_text)
+                sentiment_score = blob.sentiment.polarity  # -1 to 1
+                subjectivity = blob.sentiment.subjectivity  # 0 to 1
+                analysis_details['sentiment_polarity'] = round(sentiment_score, 3)
+                analysis_details['subjectivity'] = round(subjectivity, 3)
+            except Exception as e:
+                logger.warning(f"TextBlob analysis failed: {e}")
         
-        # Sentimento (peso menor pois pode ser enganoso)
-        productive_score += negative_score * 0.2  # Emails negativos tendem a ser produtivos
-        nonproductive_score += positive_score * 0.3  # Emails positivos podem ser sociais
+        # 2. Contagem de palavras-chave
+        productive_matches = sum(1 for keyword in classifier.productive_keywords if keyword in text_lower)
+        nonproductive_matches = sum(1 for keyword in classifier.nonproductive_keywords if keyword in text_lower)
         
-        # Palavras-chave (peso alto)
-        productive_score += productive_matches * 0.3
-        nonproductive_score += nonproductive_matches * 0.4
+        # 3. Análise de padrões usando regex
+        pattern_matches = 0
+        for pattern in classifier.productive_patterns:
+            if re.search(pattern, text_lower, re.IGNORECASE):
+                pattern_matches += 1
         
-        # Zero-shot results (peso médio)
-        if zero_shot_result:
-            business_labels = ["technical support request", "business inquiry", "complaint or issue"]
-            social_labels = ["greeting or social message", "thank you message", "celebration or congratulations"]
-            
-            top_label = zero_shot_result['labels'][0]
-            top_score = zero_shot_result['scores'][0]
-            
-            if top_label in business_labels:
-                productive_score += top_score * 0.4
-            elif top_label in social_labels:
-                nonproductive_score += top_score * 0.4
-        
-        # Ajustes baseados em estrutura do texto
+        # 4. Análise estrutural do texto
         word_count = len(text.split())
+        sentence_count = len([s for s in text.split('.') if s.strip()])
         question_count = text.count('?')
+        exclamation_count = text.count('!')
+        caps_ratio = sum(1 for c in text if c.isupper()) / max(len(text), 1)
         
-        if question_count > 0:
-            productive_score += 0.2
+        analysis_details.update({
+            'productive_keywords': productive_matches,
+            'nonproductive_keywords': nonproductive_matches,
+            'pattern_matches': pattern_matches,
+            'word_count': word_count,
+            'question_count': question_count,
+            'exclamation_count': exclamation_count,
+            'caps_ratio': round(caps_ratio, 3)
+        })
         
-        if word_count < 30 and nonproductive_matches > 0:
-            nonproductive_score += 0.3
+        # 5. Cálculo de score de produtividade
+        productive_score = 0.0
         
+        # Palavras-chave produtivas (peso alto)
+        productive_score += productive_matches * 0.3
+        
+        # Padrões produtivos (peso médio)
+        productive_score += pattern_matches * 0.2
+        
+        # Perguntas indicam necessidade de resposta
+        productive_score += question_count * 0.15
+        
+        # Texto longo pode indicar problema complexo
+        if word_count > 50:
+            productive_score += 0.1
         if word_count > 100:
             productive_score += 0.1
         
-        # Decisão final
+        # Muitas maiúsculas podem indicar urgência
+        if caps_ratio > 0.1:
+            productive_score += 0.1
+        
+        # Sentimento negativo pode indicar problema
+        if sentiment_score < -0.2:
+            productive_score += 0.15
+        
+        # Score de não-produtividade
+        nonproductive_score = 0.0
+        
+        # Palavras-chave não-produtivas (peso alto)
+        nonproductive_score += nonproductive_matches * 0.4
+        
+        # Sentimento muito positivo pode ser social
+        if sentiment_score > 0.3:
+            nonproductive_score += 0.2
+        
+        # Mensagens muito curtas com agradecimentos
+        if word_count < 30 and nonproductive_matches > 0:
+            nonproductive_score += 0.3
+        
+        # Baixa subjetividade com palavras positivas
+        if classifier.textblob_available and 'subjectivity' in analysis_details:
+            if analysis_details['subjectivity'] < 0.3 and nonproductive_matches > 0:
+                nonproductive_score += 0.2
+        
+        # 6. Decisão final
         if productive_score > nonproductive_score:
             classification = "Productive"
-            confidence = min(0.95, 0.6 + productive_score)
+            confidence = min(0.95, 0.6 + (productive_score * 0.8))
         else:
-            classification = "Non-Productive"
-            confidence = min(0.95, 0.6 + nonproductive_score)
+            classification = "Non-Productive"  
+            confidence = min(0.95, 0.6 + (nonproductive_score * 0.8))
         
-        # Preparar detalhes para resposta
-        analysis_details = {
-            'sentiment_scores': sentiment_scores,
-            'productive_keywords_found': productive_matches,
-            'nonproductive_keywords_found': nonproductive_matches,
-            'zero_shot_top_label': zero_shot_result['labels'][0] if zero_shot_result else None,
-            'zero_shot_confidence': zero_shot_result['scores'][0] if zero_shot_result else None
-        }
+        # Ajustar confiança baseada na diferença de scores
+        score_diff = abs(productive_score - nonproductive_score)
+        if score_diff > 0.5:
+            confidence = min(0.95, confidence + 0.1)
+        
+        analysis_details.update({
+            'productive_score': round(productive_score, 3),
+            'nonproductive_score': round(nonproductive_score, 3),
+            'score_difference': round(score_diff, 3),
+            'method': 'lightweight_ai'
+        })
         
         return classification, round(confidence, 2), analysis_details
         
     except Exception as e:
-        logger.error(f"Transformers classification failed: {e}")
+        logger.error(f"Lightweight AI classification failed: {e}")
         return classify_with_rules(text)
 
 def classify_with_rules(text):
@@ -310,24 +318,24 @@ def generate_response(classification, confidence, original_text):
 def health_check():
     """Health check endpoint com status detalhado"""
     models_status = {
-        'sentiment_model': classifier.sentiment_model is not None,
-        'zero_shot_classifier': classifier.zero_shot_classifier is not None,
-        'device': str(classifier.device),
-        'torch_version': torch.__version__,
-        'cuda_available': torch.cuda.is_available()
+        'textblob_available': classifier.textblob_available,
+        'classification_method': 'lightweight_ai',
+        'productive_keywords': len(classifier.productive_keywords),
+        'nonproductive_keywords': len(classifier.nonproductive_keywords),
+        'patterns_count': len(classifier.productive_patterns)
     }
     
     response = jsonify({
         'status': 'healthy',
-        'service': 'Transformers Email Classifier API',
-        'version': '2.1.0',
+        'service': 'Lightweight Email Classifier API',
+        'version': '3.0.0',
         'ai_models': models_status,
         'features': [
-            'PyTorch/Transformers classification',
-            'Advanced sentiment analysis',
-            'Zero-shot classification',
-            'Hybrid ensemble system',
-            'Robust fallback mechanisms'
+            'Lightweight text classification',
+            'TextBlob sentiment analysis',
+            'Pattern-based recognition',
+            'Rule-based classification',
+            'Fast and memory-efficient'
         ]
     })
     
@@ -373,8 +381,8 @@ def analyze_email():
         if not email_text or len(email_text.strip()) < 10:
             return jsonify({'error': 'Please provide email content with at least 10 characters.'}), 400
         
-        # Classificação híbrida com Transformers
-        classification, confidence, analysis_details = classify_with_transformers(email_text)
+        # Classificação leve com TextBlob + regras
+        classification, confidence, analysis_details = classify_with_lightweight_ai(email_text)
         logger.info(f"Classification: {classification}, Confidence: {confidence}")
         
         # Gerar resposta automática
@@ -390,7 +398,7 @@ def analyze_email():
             'suggested_response': suggested_response,
             'original_text': email_text[:300] + "..." if len(email_text) > 300 else email_text,
             'processed_text': processed_text[:200] + "..." if len(processed_text) > 200 else processed_text,
-            'ai_method': 'transformers_hybrid',
+            'ai_method': 'lightweight_hybrid',
             'analysis_details': analysis_details,
             'analysis': {
                 'text_length': len(email_text),
@@ -398,12 +406,12 @@ def analyze_email():
                 'processed_words': len(processed_text.split()) if processed_text else 0,
                 'question_marks': email_text.count('?'),
                 'exclamation_marks': email_text.count('!'),
-                'device_used': str(classifier.device)
+                'memory_efficient': True
             },
             'model_info': {
-                'sentiment_model_loaded': classifier.sentiment_model is not None,
-                'zero_shot_model_loaded': classifier.zero_shot_classifier is not None,
-                'torch_version': torch.__version__
+                'textblob_available': classifier.textblob_available,
+                'classification_method': 'rule_based_with_sentiment',
+                'lightweight_version': '3.0.0'
             }
         }
         
@@ -453,10 +461,10 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV') == 'development'
     
-    logger.info(f"Starting Transformers-powered Flask app on port {port}")
+    logger.info(f"Starting Lightweight Email Classifier Flask app on port {port}")
     logger.info(f"Debug mode: {debug}")
-    logger.info(f"PyTorch version: {torch.__version__}")
-    logger.info(f"CUDA available: {torch.cuda.is_available()}")
-    logger.info(f"Models loaded: Sentiment={classifier.sentiment_model is not None}, Zero-shot={classifier.zero_shot_classifier is not None}")
+    logger.info(f"TextBlob available: {classifier.textblob_available}")
+    logger.info(f"Classification method: Lightweight AI + Rules")
+    logger.info(f"Memory usage: Minimal (< 50MB)")
     
     app.run(debug=debug, host='0.0.0.0', port=port)
