@@ -1,0 +1,10 @@
+uploads/
+*.pyc
+__pycache__/
+.env
+.venv/
+venv/
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
