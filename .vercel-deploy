@@ -1,0 +1,5 @@
+# Vercel Deploy Trigger
+# This file ensures a clean deployment after Git repository cleanup
+Deploy Timestamp: 2025-01-01T21:37:00Z
+Repository State: Clean - no large files
+Configuration: Updated for frontend-only deployment
