@@ -272,3 +272,5 @@ Este projeto está licenciado sob a **MIT License** - veja o arquivo [LICENSE](L
 ---
 
 _⭐ Se este projeto te ajudou, considere dar uma estrela no repositório!_
+
+_⭐ Se este projeto te ajudou, considere dar uma estrela no repositório!_
