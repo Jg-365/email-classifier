@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: ai-email-classifier-frontend
+    env: node
+    buildCommand: chmod +x build.sh && ./build.sh
+    startCommand: chmod +x start.sh && ./start.sh
+    plan: free
+    branch: main
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 18.x
+      - key: NPM_VERSION
+        value: latest
+    # Ignore backend files for frontend-only deployment
+    ignore:
+      - backend/**
+      - venv/**
+      - __pycache__/**
+      - "*.py"
+      - requirements.txt
+      - "*.pyc"
+      - uploads/**
