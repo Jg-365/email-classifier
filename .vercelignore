@@ -1,10 +1,21 @@
+# Backend files - deploy frontend only
 backend/
 backend/**
 *.py
-requirements.txt
-uploads/
+venv/
+venv/**
 __pycache__/
 *.pyc
 .env
-app-*.py
-requirements-*.txt
+.env.*
+!.env.production
+
+# Build artifacts
+node_modules/
+dist/
+.next/
+.cache/
+
+# Uploads and temp files
+uploads/
+*.log
