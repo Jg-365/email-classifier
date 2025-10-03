@@ -4,7 +4,7 @@
 
 Uma aplicação web completa que utiliza análise de texto inteligente para classificar emails automaticamente como **Produtivos** ou **Não Produtivos** e gerar respostas automáticas contextualizadas. Otimizada para performance e baixo consumo de memória.
 
-> 📱 **Demo ao vivo:** [https://email-classifier.vercel.app](https://email-classifier-pi.vercel.app)  
+> 📱 **Demo ao vivo:** [https://email-classifier.vercel-pi.app](https://email-classifier-pi.vercel.app)  
 > 🔗 **API Backend:** [https://email-classifier-backend.onrender.com](https://email-classifier-backend.onrender.com)
 
 ---
